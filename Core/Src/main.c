@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <stdint.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -44,6 +45,7 @@ USART_HandleTypeDef husart1;
 
 /* USER CODE BEGIN PV */
 
+int32_t data_int = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -56,7 +58,49 @@ static void MX_USART1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+uint32_t DWT_Delay_Init(void) {
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    DWT->CYCCNT = 0;
+    return 0;
+}
+void delay_us(uint32_t us) {
+    uint32_t start = DWT->CYCCNT;
+    uint32_t ticks = (SystemCoreClock / 1000000U) * us;
+    while ((DWT->CYCCNT - start) < ticks) {
+        // busy-wait, but only for ~1-2us at a time in HX711 use
+    }
+  }
+int32_t HX711_read(void){
+  uint32_t raw = 0;
 
+  /* Wait here until HX711 signals a conversion is ready */
+  while (HAL_GPIO_ReadPin(DO_GPIO_Port, DO_Pin) == GPIO_PIN_SET) { }
+
+  for (int i = 0; i < 24; i++) {
+    HAL_GPIO_WritePin(CK_GPIO_Port, CK_Pin, GPIO_PIN_SET);
+    delay_us(1);
+    raw = (raw << 1) | HAL_GPIO_ReadPin(DO_GPIO_Port, DO_Pin);
+    HAL_GPIO_WritePin(CK_GPIO_Port, CK_Pin, GPIO_PIN_RESET);
+    delay_us(1);
+  }
+
+  /* 25th pulse: arm next conversion as channel A, gain 128 */
+  HAL_GPIO_WritePin(CK_GPIO_Port, CK_Pin, GPIO_PIN_SET);
+  delay_us(1);
+  HAL_GPIO_WritePin(CK_GPIO_Port, CK_Pin, GPIO_PIN_RESET);
+  delay_us(1);
+
+  /* sign-extend 24-bit two's complement into 32-bit signed */
+  int32_t result;
+  if (raw & 0x800000) {
+    result = (int32_t)(raw | 0xFF000000);
+  } else {
+    result = (int32_t)raw;
+  }
+  return result;
+
+}
 /* USER CODE END 0 */
 
 /**
@@ -83,7 +127,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  DWT_Delay_Init(); // Initialize DWT for microsecond delay
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
