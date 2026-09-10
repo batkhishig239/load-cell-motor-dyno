@@ -46,6 +46,10 @@ UART_HandleTypeDef huart2;
 uint32_t last_send_time = 0;
 int32_t data_int = 0;
 char data_str[16]; // Buffer to hold the string representation of the integer
+int32_t average_offset = 0; // Variable to hold the average offset for calibration
+float alpha_filt_ = 0.1; // Smoothing factor for the low-pass filter
+
+uint32_t HX711_cycles_max = 0; // Variable to hold the maximum HX711 cycle count
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -127,6 +131,7 @@ void send_telemetry() {
     
     uint32_t HX711_cycles = DWT->CYCCNT - HX711;
     if (HX711_cycles > HX711_cycles_max) HX711_cycles_max = HX711_cycles; 
+    // Takes about 8ms to read so 20ms is a good interval for sending telemetry
   }
 // void send_telemetry();
 
@@ -174,9 +179,14 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+    int32_t current_time = HAL_GetTick();
+    if (current_time - last_send_time >= 20) { // Check if 20 ms has passed
+      HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin); // Toggle LED to indicate sending telemetry
+      send_telemetry();
+      last_send_time = current_time;
+    }
     /* USER CODE BEGIN 3 */
-    send_telemetry();
+    
   }
   /* USER CODE END 3 */
 }
