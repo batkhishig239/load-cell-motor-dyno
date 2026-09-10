@@ -98,8 +98,25 @@ int32_t HX711_read(void){
   } else {
     result = (int32_t)raw;
   }
+  result = result - average_offset;
   return result;
 
+}
+
+int32_t Calibrate_HX711() {
+    int32_t sum = 0;
+    const int num_samples = 10;
+
+    for (int i = 0; i < num_samples; i++) {
+        sum += HX711_read();
+        HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin); // Toggle LED to indicate reading
+        HAL_Delay(50); // Delay between readings
+    }
+
+    int32_t average = sum / num_samples;
+    // Store the average value as the offset for calibration
+    // You can use this offset in your main loop to adjust readings
+    return average;
 }
 void send_telemetry() {
     data_int = HX711_read();
@@ -144,7 +161,7 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  average_offset = Calibrate_HX711(); // Calibrate the HX711 and get the average offset
   /* USER CODE END 2 */
 
   /* Infinite loop */
