@@ -119,10 +119,15 @@ int32_t Calibrate_HX711() {
     return average;
 }
 void send_telemetry() {
+    uint32_t HX711 = DWT->CYCCNT;
+
     data_int = HX711_read();
     int len = snprintf(data_str, sizeof(data_str), "%d\r\n", data_int); // Convert integer to string with newline
     HAL_UART_Transmit(&huart2, (uint8_t*)data_str, len, HAL_MAX_DELAY);
-}
+    
+    uint32_t HX711_cycles = DWT->CYCCNT - HX711;
+    if (HX711_cycles > HX711_cycles_max) HX711_cycles_max = HX711_cycles; 
+  }
 // void send_telemetry();
 
 // void USART_send_byte(){
