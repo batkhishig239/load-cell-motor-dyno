@@ -1,5 +1,7 @@
 # Motor Torque & Performance Measurement Rig
 
+![Prototype](images/IMG_3034.jpeg)
+
 A small load-cell-based test bench for pulling raw torque data off a BLDC/DC motor, built around an STM32F103, an HX711 load-cell amplifier, and a LabVIEW front end for logging and visualization.
 
 ## Overview
@@ -8,19 +10,29 @@ The idea is simple: mount the motor so its output shaft presses down on the expo
 
 Pair that torque data with a **no-load RPM** reading (taken separately with a simple RPM counter/tachometer) and you have the two numbers needed to sketch the motor's torque–speed performance curve, the same kind of chart you'd see on a motor datasheet.
 
+### Jump to a section
+
+- [How it works](#how-it-works)
+- [Hardware](#hardware)
+- [Firmware details](#firmware-details)
+- [Data flow](#data-flow)
+- [LabVIEW test](#labview-test)
+- [Building the performance curve](#building-the-performance-curve)
+- [Repository contents](#repository-contents)
+- [Future improvements](#future-improvements)
+
+---
+
 ## How it works
 
-1. **Mechanical setup** — The motor is fixed to a rig so its shaft bears directly onto the load cell's exposed sensing surface (see `images/IMG_3034.jpeg` for the load cell and its 3D-printed mounting bracket).
-2. **Load cell → HX711 → MCU** — The load cell's differential output feeds into an HX711 24-bit ADC/amplifier breakout (the orange board in the photo). The HX711 is bit-banged over two GPIO lines (clock `CK` and data `DO`) from an STM32F103 board.
+1. **Mechanical setup** — The motor is fixed to a rig so its shaft bears directly onto the load cell's exposed sensing surface.
+2. **Load cell → HX711 → MCU** — The load cell's differential output feeds into an HX711 24-bit ADC/amplifier breakout (the orange board in the photo above). The HX711 is bit-banged over two GPIO lines (clock `CK` and data `DO`) from an STM32F103 board.
 3. **Firmware (STM32F103, `main.c`)** — On boot, the firmware:
    - Initializes the DWT cycle counter for microsecond-accurate delays (`DWT_Delay_Init`, `delay_us`).
    - Runs a 10-sample calibration pass (`Calibrate_HX711`) to determine a zero-load offset, which is subtracted from every subsequent reading.
    - In the main loop, reads the HX711 every 20 ms (`HX711_read`, which bit-bangs the HX711's 24-bit gain-128 protocol and sign-extends the result) and streams each sample out over USART2 at 115200 baud as a newline-terminated ASCII integer (`send_telemetry`).
    - An LED toggles on every telemetry send as a visual heartbeat.
-4. **Host-side logging (LabVIEW)** — A LabVIEW VI (`Torque_measuring_device.vi`, see `images/labview_data.png`) opens the STM32's serial port over VISA, reads the incoming line-terminated integers, and:
-   - Converts the raw load-cell counts into a force/torque value.
-   - Plots the live raw signal (`Electric_value`) and the derived `Torque, Nm` curve over time.
-   - Continuously tracks `Max_torque` and running `mean` torque from the incoming stream.
+4. **Host-side logging (LabVIEW)** — A LabVIEW VI opens the STM32's serial port over VISA, reads the incoming line-terminated integers, converts them into force/torque, and plots + logs the result live. See [LabVIEW test](#labview-test) below.
 
 ## Hardware
 
@@ -50,6 +62,19 @@ Motor shaft → Load cell → HX711 → STM32F103 (USART2, 115200) → PC (VISA/
                                                                                   └─ mean torque
 ```
 
+## LabVIEW test
+
+![Hardware setup and LabVIEW acquisition side by side](images/test_setup_combined.png)
+
+*Left: the STM32F103 + HX711 hardware mounted to the load cell. Right: the LabVIEW front panel during a live test run.*
+
+The VI opens the STM32's COM port over VISA, reads the newline-terminated integer stream coming off `send_telemetry`, and:
+
+- Plots the raw load-cell signal (`Electric_value`) as it comes in.
+- Derives and plots `Torque, Nm` over time.
+- Continuously updates `Max_torque` and a running `mean` torque from the stream.
+- Exposes basic serial config (port, termination character) and a `STOP` control to end the run.
+
 ## Building the performance curve
 
 1. Run the rig and capture the torque-vs-time trace during spin-up (LabVIEW logs `Max_torque` and mean torque automatically).
@@ -59,8 +84,9 @@ Motor shaft → Load cell → HX711 → STM32F103 (USART2, 115200) → PC (VISA/
 ## Repository contents
 
 - `main.c` — STM32F103 firmware (HX711 read + UART telemetry)
-- `images/labview_data.png` — LabVIEW front panel showing live torque acquisition
 - `images/IMG_3034.jpeg` — Load cell + STM32F103 hardware setup
+- `images/labview_data.png` — LabVIEW front panel showing live torque acquisition
+- `images/test_setup_combined.png` — Hardware and LabVIEW panel side by side
 
 ## Future improvements
 
